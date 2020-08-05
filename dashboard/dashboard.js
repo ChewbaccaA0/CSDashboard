@@ -10,7 +10,8 @@ const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const Discord = require("discord.js");
 const GuildSettings = require("../models/settings");
-const fs = require("fs");
+const fsPromise = require("fs").promises;
+const jQuery = require("jquery");
 
 // We instantiate express app and the session store.
 const app = express();
@@ -165,60 +166,58 @@ module.exports = async (client) => {
       storedSettings = await GuildSettings.findOne({ gid: guild.id });
     }
   
-    renderTemplate(res, req, "settings.ejs", { guild, settings: storedSettings, alert: null });
+    let channels = guild.channels.cache;
+    let idSystemChannel = guild.systemChannelID
+
+    renderTemplate(res, req, "settings.ejs", { guild, channels, idSystemChannel, settings: storedSettings, alert: null });
   });
 
     // Settings endpoint.
     app.post("/dashboard/:guildID", checkAuth, async (req, res) => {
-        // We validate the request, check if guild exists, member is in guild and if member has minimum permissions, if not, we redirect it back.
-        const guild = client.guilds.cache.get(req.params.guildID);
-        if (!guild) return res.redirect("/dashboard");
-        const member = guild.members.cache.get(req.user.id);
-        if (!member) return res.redirect("/dashboard");
-        if (!member.permissions.has("MANAGE_GUILD")) return res.redirect("/dashboard");
-        // We retrive the settings stored for this guild.
-        var storedSettings = await GuildSettings.findOne({ gid: guild.id });
-        if (!storedSettings) {
-          // If there are no settings stored for this guild, we create them and try to retrive them again.
-          const newSettings = new GuildSettings({
-            gid: guild.id,
-            gname: guild.name
-          });
-          await newSettings.save().catch(()=>{});
-          storedSettings = await GuildSettings.findOne({ gid: guild.id });
-        }
-      
-        // We set the prefix of the server settings to the one that was sent in request from the form.
-        storedSettings.gname = req.body.inputName;
-        storedSettings.prefix = req.body.inputPrefix;
-        var b64s = req.body.iconHidden;
+      // We validate the request, check if guild exists, member is in guild and if member has minimum permissions, if not, we redirect it back.
+      let guild = client.guilds.cache.get(req.params.guildID);
+      if (!guild) return res.redirect("/dashboard");
+      const member = guild.members.cache.get(req.user.id);
+      if (!member) return res.redirect("/dashboard");
+      if (!member.permissions.has("MANAGE_GUILD")) return res.redirect("/dashboard");
+      // We retrive the settings stored for this guild.
+      var storedSettings = await GuildSettings.findOne({ gid: guild.id });
+      if (!storedSettings) {
+        // If there are no settings stored for this guild, we create them and try to retrive them again.
+        const newSettings = new GuildSettings({
+          gid: guild.id,
+          gname: guild.name
+        });
+        await newSettings.save().catch(()=>{});
+        storedSettings = await GuildSettings.findOne({ gid: guild.id });
+      }
+    
+      // We set the prefix of the server settings to the one that was sent in request from the form.
+      let rueckmeldung = ``;
+      try {
+      storedSettings.prefix = req.body.inputPrefix;
+      guild = await guild.setName(req.body.inputName);
+      guild = await guild.setSystemChannel(req.body.welChannel);
+      rueckmeldung += `Name, prefix and welcome channel has been saved.`
+      var b64s = req.body.iconHidden;
         if (!(b64s == "" || b64s.length < 10)) {
           var base64Data = b64s.replace(/^data:image\/png;base64,/, "");
-          fs.writeFile("out.png", base64Data, 'base64', function (err) {
-            if (err) {
-              console.log("file not created");
-            }
-          });
-          guild.setIcon('./out.png').then(g => {
-            fs.unlink('./out.png', function (err) {
-              if (err) {
-                console.log("file not deleted");
-              }
-            });
-          }).catch(err => {
-            console.error;
-            fs.unlink('./out.png', function (err) {
-              if (err) {
-                console.log("file not deleted");
-              }
-            });
-          });
+          await fsPromise.writeFile("out.png", base64Data, 'base64');
+          guild = await g.setIcon('./out.png');
+          await fsPromise.unlink('./out.png');
+          rueckmeldung += `New guild icon set successfully`;
         }
-        // We save the settings.
-        await storedSettings.save().catch(() => {});
+      } catch (err) {
+        rueckmeldung += `Error while handling the picture, please contact the developer with ${storedSettings.prefix}contact`;
+      }
+      // We save the settings.
+      await storedSettings.save().catch(() => {});
 
-        // We render the template with an alert text which confirms that settings have been saved.
-        renderTemplate(res, req, "settings.ejs", { guild, settings: storedSettings, alert: "Your settings have been saved." });
+      var channels = guild.channels.cache;
+      var idSystemChannel = guild.systemChannelID;
+
+      // We render the template with an alert text which confirms that settings have been saved.
+      renderTemplate(res, req, "settings.ejs", { guild, channels, idSystemChannel, settings: storedSettings, alert: rueckmeldung });
     });
 
   app.listen(config.port, null, null, () => console.log(`Dashboard is up and running on port ${config.port}.`));

@@ -1,34 +1,42 @@
 <%- include("partials/header", { bot, user, path, title: "Home" }) %>
 
 <% if (alert) { %>
-  <p><%= alert %></p><br>
+  <p><%- alert %></p><br>
 <% } %>
 
-<h1><%= guild.name %></h1>
 <form style="margin-top: 1em;" method="POST">
-  <fieldset>
-    <label for="inputPrefix">
+<h1>
+  <%= guild.name %>
+  <button class="btnSubmit" type="submit">Save Settings</button>
+</h1>
+  <fieldset class="input">
+    <legend>
       Prefix
-    </label>
+    </legend>
     <input type="text" name="inputPrefix" id="inputPrefix" value="<%= settings.prefix %>" placeholder="Your prefix.">
   </fieldset>
-  <fieldset>
-    <label for="inputName">
+  <fieldset class="input">
+    <legend>
       Guild Name
-    </label>
+    </legend>
     <input type="text" name="inputName" id="inputName" value="<%= settings.gname %>" placeholder="<%= guild.name %>">
   </fieldset>
-  <fieldset>
-    <label for="inputIcon">
+  <fieldset class="input">
+    <legend>
       Guild Icon
-    </label>
-    <input type="file" name="inputIcon" id="inputIcon">
+    </legend>
+    <input type="file" name="inputIcon" id="inputIcon" accept="image/x-png">
     <input type="hidden" name="iconHidden" id="iconHidden" value="">
   </fieldset>
-  <button type="submit">Save Settings</button>
+  <fieldset class="input">
+    <legend>
+      Welcome Channel
+    </legend>
+    <% // Selectbox with welcome channel %>
+    <div id="channel"></div>
+  </fieldset>
+  <br>
 </form>
-
-<a href="../dashboard/">Go back to dashboard</a>
 
 <script>
   (function() {
@@ -55,6 +63,20 @@
       reader.readAsBinaryString(f);
     }
   })();
+  $(document).ready(function() {
+    var channels = JSON.parse(`<%- JSON.stringify(channels) %>`);
+    var idSystemChannel = JSON.parse(`<%- JSON.stringify(idSystemChannel) %>`);
+    // Selectbox
+    var select = $("<select name='welChannel'></select>"); 
+    for (var i = 0; i < channels.length; i++) {
+      var opt = $("<option></option");
+      opt.val(channels[i].id);
+      opt.html(channels[i].name);
+      select.append(opt);
+    }
+    select.val(idSystemChannel);
+    $("#channel").html(select);
+  });
 </script>
 </body>
 </html>
